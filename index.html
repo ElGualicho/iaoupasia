@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>IA ou pas IA ?</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <main id="app" class="app" aria-live="polite">
+      <img class="brand-logo" src="assets/logo_castelnau.png" alt="Castelnau-le-Lez">
+
+      <section class="screen screen-home is-active" data-screen="home">
+        <div class="home-content">
+          <h1>IA OU PAS IA&nbsp;?</h1>
+          <p>Devinez quelle image a été générée à l'aide de l'intelligence artificielle</p>
+          <div class="button-row">
+            <button class="primary-button" type="button" data-action="open-setup">Jouer</button>
+            <button class="primary-button" type="button" data-action="quick-play">Partie rapide</button>
+            <button class="primary-button" type="button" data-action="open-scores">Tableau des scores</button>
+          </div>
+          <div class="download-panel">
+            <button class="secondary-button download-toggle" type="button" data-action="toggle-download-menu" aria-expanded="false" aria-controls="downloadMenu">
+              Télécharger les images
+            </button>
+            <div class="download-menu" id="downloadMenu" hidden>
+              <button type="button" data-action="select-download-site" data-site="muriers">EHPAD Les Mûriers</button>
+              <button type="button" data-action="select-download-site" data-site="via-domitia">EHPAD Via Domitia</button>
+            </div>
+            <div class="download-choice" id="downloadChoice" hidden>
+              <span id="downloadSiteLabel"></span>
+              <button class="primary-button download-button" type="button" data-action="download-images-pdf">Télécharger</button>
+            </div>
+            <p class="download-status" id="downloadStatus" aria-live="polite"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen screen-setup" data-screen="setup">
+        <div class="setup-panel">
+          <label class="player-field">
+            <span>Pseudo</span>
+            <input id="playerName" type="text" maxlength="28" autocomplete="name" placeholder="Joueur">
+          </label>
+          <button class="ghost-button" type="button" data-action="go-home">Retour</button>
+        </div>
+        <h2>CHOISISSEZ VOTRE THÈME</h2>
+        <div class="theme-grid" id="themeGrid"></div>
+      </section>
+
+      <section class="screen screen-game" data-screen="game">
+        <button class="menu-return-button" type="button" data-action="go-home">Retour au menu</button>
+        <div class="round-status">
+          <span id="roundCounter">Manche 1 / 12</span>
+          <span id="themeBadge">Thème : Mix</span>
+          <span id="scoreBadge">Score : 0</span>
+        </div>
+        <h2>Laquelle de ces deux images a été générée par une intelligence artificielle&nbsp;?</h2>
+        <div class="image-grid" id="answerGrid"></div>
+        <p class="public-hint" id="publicHint"></p>
+      </section>
+
+      <section class="screen screen-result" data-screen="result">
+        <button class="menu-return-button" type="button" data-action="go-home">Retour au menu</button>
+        <div class="round-status">
+          <span id="resultRoundCounter">Manche 1 / 12</span>
+          <span id="resultThemeBadge">Thème : Mix</span>
+          <span id="resultScoreBadge">Score : 0</span>
+        </div>
+        <h2 id="resultTitle">Bonne réponse&nbsp;!</h2>
+        <p class="answer-reveal" id="answerReveal"></p>
+        <div class="result-layout">
+          <div class="result-image" id="resultImage"></div>
+          <div class="correction-panel">
+            <p id="educationalText"></p>
+            <ul id="clueList"></ul>
+            <p class="credit-line" id="creditLine"></p>
+          </div>
+        </div>
+        <div class="button-row result-actions">
+          <button class="primary-button" type="button" data-action="next-round">Suivant</button>
+          <button class="secondary-button" type="button" data-action="restart-theme">Recommencer</button>
+        </div>
+      </section>
+
+      <section class="screen screen-final" data-screen="final">
+        <div class="final-card">
+          <h2>Partie terminée</h2>
+          <p class="final-score" id="finalScore"></p>
+          <p class="level-label" id="levelLabel"></p>
+          <p class="best-score" id="bestScore"></p>
+          <div class="score-save-panel">
+            <label class="player-field final-name-field">
+              <span>Votre nom</span>
+              <input id="finalPlayerName" type="text" maxlength="28" autocomplete="name" placeholder="Joueur">
+            </label>
+            <button class="primary-button" type="button" data-action="save-score">Enregistrer votre score</button>
+            <p class="save-status" id="saveStatus"></p>
+          </div>
+          <div class="button-row">
+            <button class="primary-button" type="button" data-action="replay">Rejouer</button>
+            <button class="secondary-button" type="button" data-action="open-setup">Changer de thème</button>
+            <button class="secondary-button" type="button" data-action="open-scores">Scores</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen screen-scores" data-screen="scores">
+        <div class="scores-card">
+          <h2>Tableau des scores</h2>
+          <div class="scores-list" id="scoresList"></div>
+          <div class="button-row">
+            <button class="primary-button" type="button" data-action="go-home">Accueil</button>
+            <button class="secondary-button" type="button" data-action="clear-scores">Effacer les scores</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="zoom-modal" id="zoomModal" role="dialog" aria-modal="true" aria-labelledby="zoomTitle" aria-hidden="true">
+        <button class="zoom-backdrop" type="button" data-action="close-zoom" aria-label="Fermer l'agrandissement"></button>
+        <div class="zoom-panel">
+          <div class="zoom-header">
+            <h2 id="zoomTitle">Image IA agrandie</h2>
+            <button class="zoom-close-button" type="button" data-action="close-zoom">Fermer</button>
+          </div>
+          <div class="zoom-image-frame" id="zoomImageFrame"></div>
+        </div>
+      </div>
+    </main>
+
+    <script src="data/questions.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
