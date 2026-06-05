@@ -28,6 +28,147 @@
       fileSlug: "ehpad-via-domitia"
     }
   };
+  const PLAYER_NAME_FALLBACK = "Joueur";
+  const PLAYER_NAME_MAX_LENGTH = 28;
+  const PLAYER_NAME_ALLOWED_PATTERN = /^[A-Za-z0-9 '\-\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F]+$/;
+  const PLAYER_NAME_EXACT_FORBIDDEN_TERMS = ["con", "cul", "pd", "tg", "mao", "fdp", "ntm"];
+  const PLAYER_NAME_FORBIDDEN_TERMS = [
+    "adolf",
+    "hitler",
+    "hitlerien",
+    "nazi",
+    "nazisme",
+    "reich",
+    "fuhrer",
+    "gestapo",
+    "mussolini",
+    "stalin",
+    "staline",
+    "mao",
+    "pol pot",
+    "polpot",
+    "pinochet",
+    "franco",
+    "saddam",
+    "kim jong",
+    "kimjong",
+    "bachar",
+    "bashar",
+    "assad",
+    "poutine",
+    "putin",
+    "ben laden",
+    "benladen",
+    "daech",
+    "isis",
+    "terroriste",
+    "terrorisme",
+    "abruti",
+    "abrutie",
+    "andouille",
+    "batard",
+    "batarde",
+    "bite",
+    "bites",
+    "bouffon",
+    "bouffonne",
+    "branle",
+    "branler",
+    "branlette",
+    "branleur",
+    "branleuse",
+    "chibre",
+    "connarde",
+    "connard",
+    "connasse",
+    "conasse",
+    "connerie",
+    "couille",
+    "couilles",
+    "couillon",
+    "couillonne",
+    "cretin",
+    "cretine",
+    "debile",
+    "debilos",
+    "demeure",
+    "ducon",
+    "emmerde",
+    "emmerdeur",
+    "emmerdeuse",
+    "encule",
+    "enculer",
+    "enculee",
+    "enfoire",
+    "enfoiree",
+    "face de cul",
+    "fdp",
+    "fiotte",
+    "foutre",
+    "garce",
+    "gland",
+    "gouine",
+    "grosse merde",
+    "idiot",
+    "idiote",
+    "imbecile",
+    "merde",
+    "merdeux",
+    "merdeuse",
+    "nique",
+    "niquer",
+    "nique ta mere",
+    "ordure",
+    "pedale",
+    "petasse",
+    "poufiasse",
+    "pouffiasse",
+    "pute",
+    "putasse",
+    "putain",
+    "salaud",
+    "salaude",
+    "salopard",
+    "salope",
+    "sous merde",
+    "ta gueule",
+    "ta mere",
+    "tamere",
+    "tapin",
+    "tapette",
+    "tafiole",
+    "tantouze",
+    "tepu",
+    "teub",
+    "teube",
+    "trou du cul",
+    "zob",
+    "bougnoule",
+    "bicot",
+    "chinetoque",
+    "negre",
+    "negresse",
+    "negro",
+    "youpin",
+    "youpine",
+    "antisemite",
+    "antisemitisme",
+    "fachiste",
+    "fasciste",
+    "raciste",
+    "facho",
+    "homophobe",
+    "islamophobe",
+    "pedophile",
+    "pedophilie",
+    "pedo",
+    "violeur",
+    "violeuse",
+    "fuck",
+    "shit",
+    "bitch",
+    "asshole"
+  ];
 
   const themeClues = {
     Chats: [
@@ -65,7 +206,7 @@
   const QUESTIONS = (window.IaOuPasIaQuestions || []).map(prepareQuestion);
 
   const state = {
-    playerName: localStorage.getItem(PLAYER_KEY) || "",
+    playerName: getInitialPlayerName(),
     selectedTheme: "Mix",
     rounds: [],
     currentIndex: 0,
@@ -87,6 +228,7 @@
   const clueList = document.getElementById("clueList");
   const scoresList = document.getElementById("scoresList");
   const finalPlayerNameInput = document.getElementById("finalPlayerName");
+  const playerNameStatus = document.getElementById("playerNameStatus");
   const saveScoreButton = document.querySelector('[data-action="save-score"]');
   const saveStatus = document.getElementById("saveStatus");
   const zoomModal = document.getElementById("zoomModal");
@@ -132,7 +274,6 @@
       if (action === "restart-theme") startGame(state.selectedTheme, false);
       if (action === "replay") startGame(state.selectedTheme, false);
       if (action === "save-score") saveFinalScore();
-      if (action === "clear-scores") clearScores();
       if (action === "close-zoom") closeZoomModal();
       if (action === "toggle-download-menu") toggleDownloadMenu(actionTarget);
       if (action === "select-download-site") selectDownloadSite(actionTarget.dataset.site);
@@ -140,17 +281,33 @@
     });
 
     playerNameInput.addEventListener("input", () => {
-      state.playerName = playerNameInput.value.trim();
-      localStorage.setItem(PLAYER_KEY, state.playerName);
+      const player = normalizePlayerName(playerNameInput.value);
+      const validation = validatePlayerName(player);
+      updateNameValidationFeedback(playerNameInput, playerNameStatus, validation, player);
+      state.playerName = validation.isValid ? validation.value : PLAYER_NAME_FALLBACK;
+      if (!player) {
+        localStorage.removeItem(PLAYER_KEY);
+      } else if (validation.isValid) {
+        localStorage.setItem(PLAYER_KEY, validation.value);
+      }
     });
 
     finalPlayerNameInput.addEventListener("input", () => {
-      const player = finalPlayerNameInput.value.trim();
-      state.playerName = player;
-      localStorage.setItem(PLAYER_KEY, player);
+      const player = normalizePlayerName(finalPlayerNameInput.value);
+      const validation = validatePlayerName(player);
+      const isVisibleNameValid = updateNameValidationFeedback(finalPlayerNameInput, saveStatus, validation, player);
+      state.playerName = validation.isValid ? validation.value : PLAYER_NAME_FALLBACK;
+      if (!player) {
+        localStorage.removeItem(PLAYER_KEY);
+      } else if (validation.isValid) {
+        localStorage.setItem(PLAYER_KEY, validation.value);
+      }
       if (state.pendingScore && !state.scoreSaved) {
-        state.pendingScore.player = player || "Joueur";
+        state.pendingScore.player = validation.isValid ? validation.value : PLAYER_NAME_FALLBACK;
         updateFinalScoreLine();
+        if (isVisibleNameValid) {
+          saveStatus.textContent = "Votre score n'est pas encore enregistré.";
+        }
       }
     });
 
@@ -490,10 +647,22 @@
   }
 
   function startGame(theme, quickPlay) {
-    const player = playerNameInput.value.trim() || "Joueur";
+    const validation = validatePlayerName(playerNameInput.value);
+    if (!validation.isValid) {
+      showNameError(playerNameInput, playerNameStatus, validation.message);
+      return;
+    }
+
+    const player = validation.value;
     state.playerName = player;
     state.selectedTheme = theme;
-    localStorage.setItem(PLAYER_KEY, player);
+    clearNameError(playerNameInput, playerNameStatus);
+    if (normalizePlayerName(playerNameInput.value)) {
+      playerNameInput.value = player;
+      localStorage.setItem(PLAYER_KEY, player);
+    } else {
+      localStorage.removeItem(PLAYER_KEY);
+    }
 
     state.rounds = buildRounds(theme);
     state.currentIndex = 0;
@@ -741,7 +910,7 @@
   function finishGame() {
     const total = state.rounds.length;
     state.pendingScore = {
-      player: state.playerName || "Joueur",
+      player: getAcceptedPlayerName(state.playerName),
       theme: state.selectedTheme,
       score: state.score,
       total,
@@ -752,7 +921,7 @@
     finalPlayerNameInput.disabled = false;
     saveScoreButton.disabled = false;
     saveStatus.textContent = "Votre score n'est pas encore enregistré.";
-    saveStatus.classList.remove("is-saved");
+    saveStatus.classList.remove("is-saved", "is-error");
     updateFinalScoreLine();
     document.getElementById("levelLabel").textContent = getLevelLabel(state.pendingScore.score, state.pendingScore.total);
     document.getElementById("bestScore").textContent = getThemeScoreLine(state.pendingScore.theme);
@@ -762,7 +931,13 @@
   function saveFinalScore() {
     if (!state.pendingScore || state.scoreSaved) return;
 
-    const player = finalPlayerNameInput.value.trim() || "Joueur";
+    const validation = validatePlayerName(finalPlayerNameInput.value);
+    if (!validation.isValid) {
+      showNameError(finalPlayerNameInput, saveStatus, validation.message);
+      return;
+    }
+
+    const player = validation.value;
     const entry = {
       ...state.pendingScore,
       player,
@@ -778,6 +953,8 @@
     state.scoreSaved = true;
     finalPlayerNameInput.disabled = true;
     saveScoreButton.disabled = true;
+    finalPlayerNameInput.value = player;
+    clearNameError(finalPlayerNameInput, saveStatus);
     saveStatus.textContent = "Score enregistré.";
     saveStatus.classList.add("is-saved");
     updateFinalScoreLine();
@@ -801,30 +978,212 @@
     return `Score sur le thème : ${theme || "Mix"}`;
   }
 
+  function getInitialPlayerName() {
+    const storedName = localStorage.getItem(PLAYER_KEY) || "";
+    const validation = validatePlayerName(storedName);
+    if (!validation.isValid) {
+      localStorage.removeItem(PLAYER_KEY);
+      return "";
+    }
+    return validation.value === PLAYER_NAME_FALLBACK && !normalizePlayerName(storedName) ? "" : validation.value;
+  }
+
+  function getAcceptedPlayerName(rawName) {
+    const validation = validatePlayerName(rawName);
+    return validation.isValid ? validation.value : PLAYER_NAME_FALLBACK;
+  }
+
+  function validatePlayerName(rawName) {
+    const name = normalizePlayerName(rawName);
+    if (!name) {
+      return {
+        isValid: true,
+        value: PLAYER_NAME_FALLBACK
+      };
+    }
+    if (name.length > PLAYER_NAME_MAX_LENGTH) {
+      return {
+        isValid: false,
+        message: `Le pseudo doit faire ${PLAYER_NAME_MAX_LENGTH} caractères maximum.`
+      };
+    }
+    if (!PLAYER_NAME_ALLOWED_PATTERN.test(name)) {
+      return {
+        isValid: false,
+        message: "Utilisez seulement lettres, chiffres, espaces, tirets ou apostrophes."
+      };
+    }
+    if (isForbiddenPlayerName(name)) {
+      return {
+        isValid: false,
+        message: "Ce pseudo n'est pas accepté."
+      };
+    }
+    return {
+      isValid: true,
+      value: name
+    };
+  }
+
+  function normalizePlayerName(value) {
+    return String(value || "")
+      .normalize("NFKC")
+      .replace(/[\u2018\u2019\u201B\u2032]/g, "'")
+      .replace(/[\u2010-\u2015]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function isForbiddenPlayerName(name) {
+    const normalized = normalizeForModeration(name);
+    const compact = normalized.replace(/[^a-z0-9]/g, "");
+    const compactCollapsed = collapseRepeatedModerationChars(compact);
+    const normalizedCollapsed = normalized
+      .split(" ")
+      .map(collapseRepeatedModerationChars)
+      .join(" ");
+    const tokens = normalized.split(" ").filter(Boolean);
+    const collapsedTokens = normalizedCollapsed.split(" ").filter(Boolean);
+
+    const hasExactForbiddenTerm = PLAYER_NAME_EXACT_FORBIDDEN_TERMS.some((term) => {
+      const normalizedTerm = normalizeForModeration(term);
+      const collapsedTerm = collapseRepeatedModerationChars(normalizedTerm);
+      return (
+        tokens.includes(normalizedTerm) ||
+        collapsedTokens.includes(collapsedTerm) ||
+        compact === normalizedTerm ||
+        compactCollapsed === collapsedTerm
+      );
+    });
+    if (hasExactForbiddenTerm) return true;
+
+    return PLAYER_NAME_FORBIDDEN_TERMS.some((term) => {
+      const normalizedTerm = normalizeForModeration(term);
+      const collapsedTerm = normalizedTerm
+        .split(" ")
+        .map(collapseRepeatedModerationChars)
+        .join(" ");
+      const compactTerm = normalizedTerm.replace(/[^a-z0-9]/g, "");
+      const compactCollapsedTerm = collapseRepeatedModerationChars(compactTerm);
+      if (compactTerm.length <= 3) {
+        return (
+          tokens.includes(normalizedTerm) ||
+          collapsedTokens.includes(collapsedTerm) ||
+          compact === compactTerm ||
+          compactCollapsed === compactCollapsedTerm
+        );
+      }
+      return (
+        normalized.includes(normalizedTerm) ||
+        normalizedCollapsed.includes(collapsedTerm) ||
+        compact.includes(compactTerm) ||
+        compactCollapsed.includes(compactCollapsedTerm)
+      );
+    });
+  }
+
+  function normalizeForModeration(value) {
+    return normalizePlayerName(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[4@]/g, "a")
+      .replace(/3/g, "e")
+      .replace(/[1!|]/g, "i")
+      .replace(/0/g, "o")
+      .replace(/[5$]/g, "s")
+      .replace(/7/g, "t")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  function collapseRepeatedModerationChars(value) {
+    return String(value || "").replace(/([a-z0-9])\1+/g, "$1");
+  }
+
+  function showNameError(input, statusElement, message) {
+    setNameError(input, statusElement, message);
+    input.focus();
+    input.reportValidity();
+  }
+
+  function updateNameValidationFeedback(input, statusElement, validation, rawName) {
+    if (rawName && !validation.isValid) {
+      setNameError(input, statusElement, validation.message);
+      return false;
+    }
+    clearNameError(input, statusElement);
+    return true;
+  }
+
+  function setNameError(input, statusElement, message) {
+    input.classList.add("is-invalid");
+    input.setCustomValidity(message);
+    if (statusElement) {
+      statusElement.textContent = message;
+      statusElement.classList.add("is-error");
+      statusElement.classList.remove("is-saved");
+    }
+  }
+
+  function clearNameError(input, statusElement) {
+    input.classList.remove("is-invalid");
+    input.setCustomValidity("");
+    if (statusElement) {
+      statusElement.classList.remove("is-error");
+      if (statusElement === playerNameStatus) {
+        statusElement.textContent = "";
+      }
+    }
+  }
+
+  function normalizeScoreEntry(entry) {
+    if (!entry || typeof entry !== "object") return null;
+
+    const score = Number(entry.score);
+    const total = Number(entry.total);
+    if (!Number.isFinite(score) || !Number.isFinite(total) || total <= 0) return null;
+
+    return {
+      player: getAcceptedPlayerName(entry.player),
+      theme: THEMES.includes(entry.theme) ? entry.theme : "Mix",
+      score,
+      total
+    };
+  }
+
+  function createScoreCell(tagName, text) {
+    const element = document.createElement(tagName);
+    element.textContent = text;
+    return element;
+  }
+
   function renderScores() {
-    const scores = getScores().sort((a, b) => b.score / b.total - a.score / a.total || b.score - a.score).slice(0, 12);
+    const scores = getScores()
+      .map(normalizeScoreEntry)
+      .filter(Boolean)
+      .sort((a, b) => b.score / b.total - a.score / a.total || b.score - a.score)
+      .slice(0, 12);
     scoresList.innerHTML = "";
     if (!scores.length) {
-      scoresList.innerHTML = '<p class="empty-score">Aucun score enregistré pour le moment.</p>';
+      const emptyScore = document.createElement("p");
+      emptyScore.className = "empty-score";
+      emptyScore.textContent = "Aucun score enregistré pour le moment.";
+      scoresList.appendChild(emptyScore);
       return;
     }
 
     scores.forEach((entry, index) => {
       const row = document.createElement("div");
       row.className = "score-row";
-      row.innerHTML = `
-        <span>${index + 1}</span>
-        <strong>${entry.player}</strong>
-        <span>${entry.theme}</span>
-        <span>${entry.score} / ${entry.total}</span>
-      `;
+      row.append(
+        createScoreCell("span", String(index + 1)),
+        createScoreCell("strong", entry.player),
+        createScoreCell("span", entry.theme),
+        createScoreCell("span", `${entry.score} / ${entry.total}`)
+      );
       scoresList.appendChild(row);
     });
-  }
-
-  function clearScores() {
-    localStorage.removeItem(SCORE_KEY);
-    renderScores();
   }
 
   function getScores() {

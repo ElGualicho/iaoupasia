@@ -281,6 +281,7 @@ h1 {
   top: clamp(32px, 4.8vw, 86px);
   left: clamp(28px, 8vw, 157px);
   display: flex;
+  flex-wrap: wrap;
   align-items: end;
   gap: 18px;
 }
@@ -301,6 +302,19 @@ h1 {
   padding: 0 18px;
   color: var(--button-text);
   font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.player-field input.is-invalid {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.name-status {
+  flex-basis: 100%;
+  min-height: 1.3em;
+  margin: -4px 0 0;
+  color: var(--accent);
+  font-size: 0.95rem;
   font-weight: 700;
 }
 
@@ -714,6 +728,10 @@ h1 {
 }
 
 .save-status.is-saved {
+  color: var(--accent);
+}
+
+.save-status.is-error {
   color: var(--accent);
 }
 
