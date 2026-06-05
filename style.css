@@ -70,7 +70,19 @@ button {
   min-height: 100vh;
   min-height: 100dvh;
   overflow: hidden;
-  background: var(--screen);
+  background-color: var(--screen);
+}
+
+.app::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("assets/background.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  opacity: 0.58;
+  pointer-events: none;
 }
 
 .brand-logo {
@@ -84,6 +96,8 @@ button {
 }
 
 .screen {
+  position: relative;
+  z-index: 1;
   display: none;
   min-height: 100vh;
   min-height: 100dvh;
@@ -145,6 +159,13 @@ h1 {
   min-height: 52px;
   padding: 0 20px;
   font-size: clamp(1rem, 1.2vw, 1.2rem);
+}
+
+.secondary-button.download-toggle:hover,
+.secondary-button.download-toggle:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .download-menu {
