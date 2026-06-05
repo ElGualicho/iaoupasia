@@ -5,8 +5,8 @@
   const ROUNDS_PER_GAME = 12;
   const ZOOM_LENS_SCALE = 2.35;
   const PDF_PAGE = {
-    width: 595.28,
-    height: 841.89
+    width: 841.89,
+    height: 595.28
   };
   const PDF_IMAGE_MARGIN = 42;
   const PDF_MAX_IMAGE_SIZE = 1200;
