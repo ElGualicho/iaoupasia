@@ -755,7 +755,7 @@
     saveStatus.classList.remove("is-saved");
     updateFinalScoreLine();
     document.getElementById("levelLabel").textContent = getLevelLabel(state.pendingScore.score, state.pendingScore.total);
-    document.getElementById("bestScore").textContent = getBestScoreLine(state.pendingScore.theme);
+    document.getElementById("bestScore").textContent = getThemeScoreLine(state.pendingScore.theme);
     showScreen("final");
   }
 
@@ -781,7 +781,7 @@
     saveStatus.textContent = "Score enregistré.";
     saveStatus.classList.add("is-saved");
     updateFinalScoreLine();
-    document.getElementById("bestScore").textContent = getBestScoreLine(entry.theme);
+    document.getElementById("bestScore").textContent = getThemeScoreLine(entry.theme);
   }
 
   function updateFinalScoreLine() {
@@ -797,12 +797,8 @@
     return "Expert de l'observation";
   }
 
-  function getBestScoreLine(theme) {
-    const best = getScores()
-      .filter((entry) => entry.theme === theme)
-      .sort((a, b) => b.score / b.total - a.score / a.total || b.score - a.score)[0];
-    if (!best) return "Premier score enregistré pour ce thème.";
-    return `Score sur le thème : ${best.player} - ${best.score} / ${best.total}`;
+  function getThemeScoreLine(theme) {
+    return `Score sur le thème : ${theme || "Mix"}`;
   }
 
   function renderScores() {
