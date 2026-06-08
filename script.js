@@ -248,9 +248,7 @@
     const clues = question.clues || themeClues[question.theme] || themeClues.Mix;
     return {
       ...question,
-      educationalText:
-        question.educationalText ||
-        "Cette manche est prête pour le gameplay. Les indices précis seront à affiner lorsque l'image IA correspondante sera ajoutée.",
+      educationalText: question.educationalText || "",
       clues,
       publicHint: question.publicHint || "Observe les détails, pas seulement l'impression générale.",
       ai: question.ai || null
@@ -813,7 +811,9 @@
     document.getElementById("resultScoreBadge").textContent = `Score : ${state.score}`;
     document.getElementById("resultTitle").textContent = isCorrect ? "Bravo ! Bonne réponse" : "Mince ! Mauvaise réponse";
     document.getElementById("answerReveal").textContent = `Vous avez choisi l'image de ${selectedSide}. L'image de ${aiSide} était celle générée par IA.`;
-    document.getElementById("educationalText").textContent = question.educationalText;
+    const educationalText = document.getElementById("educationalText");
+    educationalText.textContent = question.educationalText;
+    educationalText.hidden = !question.educationalText;
 
     resultImage.innerHTML = "";
     resultImage.appendChild(createImageCard(aiOption, aiIndex, "result"));
