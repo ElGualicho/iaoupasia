@@ -2,6 +2,8 @@
   const THEMES = ["Chats", "Chiens", "Nourriture", "Nature", "Portraits", "Mix"];
   const SCORE_KEY = "ia-ou-pas-ia:scores:v1";
   const PLAYER_KEY = "ia-ou-pas-ia:player:v1";
+  const ACTIVE_SESSION_KEY = "ia-ou-pas-ia:active-session:v1";
+  const ACTIVE_SESSION_VERSION = 1;
   const ROUNDS_PER_GAME = 12;
   const ZOOM_LENS_SCALE = 2.35;
   const PDF_PAGE = {
@@ -207,6 +209,7 @@
 
   const state = {
     playerName: getInitialPlayerName(),
+    view: "home",
     selectedTheme: "Mix",
     rounds: [],
     currentIndex: 0,
@@ -243,6 +246,11 @@
   finalPlayerNameInput.value = state.playerName;
   renderThemes();
   bindActions();
+  window.addEventListener("pagehide", persistActiveSession);
+
+  if (!restoreActiveSession()) {
+    showScreen("home");
+  }
 
   function prepareQuestion(question) {
     const clues = question.clues || themeClues[question.theme] || themeClues.Mix;
@@ -288,6 +296,7 @@
       } else if (validation.isValid) {
         localStorage.setItem(PLAYER_KEY, validation.value);
       }
+      persistActiveSession();
     });
 
     finalPlayerNameInput.addEventListener("input", () => {
@@ -307,6 +316,7 @@
           saveStatus.textContent = "Votre score n'est pas encore enregistré.";
         }
       }
+      persistActiveSession();
     });
 
     zoomModal.addEventListener("keydown", (event) => {
@@ -698,9 +708,32 @@
     return shuffle([...picked, ...remaining]).slice(0, ROUNDS_PER_GAME);
   }
 
-  function renderRound() {
+  function renderRound(optionOrder) {
     const question = state.rounds[state.currentIndex];
-    const aiSide = chooseAISide();
+    const { realOption, aiOption } = createRoundOptions(question);
+
+    if (isValidOptionOrder(optionOrder)) {
+      const optionsByKind = { real: realOption, ai: aiOption };
+      state.currentOptions = optionOrder.map((kind) => optionsByKind[kind]);
+    } else {
+      const aiSide = chooseAISide();
+      state.currentOptions = aiSide === "left" ? [aiOption, realOption] : [realOption, aiOption];
+    }
+
+    state.selectedOption = null;
+
+    document.getElementById("roundCounter").textContent = `Manche ${state.currentIndex + 1} / ${state.rounds.length}`;
+    document.getElementById("themeBadge").textContent = `Thème : ${question.theme}`;
+    document.getElementById("scoreBadge").textContent = `Score : ${state.score}`;
+    publicHint.textContent = question.publicHint;
+
+    answerGrid.innerHTML = "";
+    state.currentOptions.forEach((option, index) => {
+      answerGrid.appendChild(createImageCard(option, index, "choice"));
+    });
+  }
+
+  function createRoundOptions(question) {
     const realOption = {
       kind: "real",
       isAI: false,
@@ -717,18 +750,7 @@
       isPlaceholder: !question.ai || !question.ai.file
     };
 
-    state.currentOptions = aiSide === "left" ? [aiOption, realOption] : [realOption, aiOption];
-    state.selectedOption = null;
-
-    document.getElementById("roundCounter").textContent = `Manche ${state.currentIndex + 1} / ${state.rounds.length}`;
-    document.getElementById("themeBadge").textContent = `Thème : ${question.theme}`;
-    document.getElementById("scoreBadge").textContent = `Score : ${state.score}`;
-    publicHint.textContent = question.publicHint;
-
-    answerGrid.innerHTML = "";
-    state.currentOptions.forEach((option, index) => {
-      answerGrid.appendChild(createImageCard(option, index, "choice"));
-    });
+    return { realOption, aiOption };
   }
 
   function chooseAISide() {
@@ -917,11 +939,18 @@
       date: new Date().toISOString()
     };
     state.scoreSaved = false;
+    renderFinalScreen();
+  }
+
+  function renderFinalScreen() {
+    if (!state.pendingScore) return;
+
     finalPlayerNameInput.value = state.pendingScore.player;
-    finalPlayerNameInput.disabled = false;
-    saveScoreButton.disabled = false;
-    saveStatus.textContent = "Votre score n'est pas encore enregistré.";
-    saveStatus.classList.remove("is-saved", "is-error");
+    finalPlayerNameInput.disabled = state.scoreSaved;
+    saveScoreButton.disabled = state.scoreSaved;
+    saveStatus.textContent = state.scoreSaved ? "Score enregistré." : "Votre score n'est pas encore enregistré.";
+    saveStatus.classList.toggle("is-saved", state.scoreSaved);
+    saveStatus.classList.remove("is-error");
     updateFinalScoreLine();
     document.getElementById("levelLabel").textContent = getLevelLabel(state.pendingScore.score, state.pendingScore.total);
     document.getElementById("bestScore").textContent = getThemeScoreLine(state.pendingScore.theme);
@@ -951,14 +980,8 @@
     state.playerName = player;
     state.pendingScore = entry;
     state.scoreSaved = true;
-    finalPlayerNameInput.disabled = true;
-    saveScoreButton.disabled = true;
-    finalPlayerNameInput.value = player;
     clearNameError(finalPlayerNameInput, saveStatus);
-    saveStatus.textContent = "Score enregistré.";
-    saveStatus.classList.add("is-saved");
-    updateFinalScoreLine();
-    document.getElementById("bestScore").textContent = getThemeScoreLine(entry.theme);
+    renderFinalScreen();
   }
 
   function updateFinalScoreLine() {
@@ -1194,10 +1217,230 @@
     }
   }
 
+  function persistActiveSession() {
+    if (state.view === "home") {
+      clearActiveSession();
+      return;
+    }
+
+    const snapshot = {
+      version: ACTIVE_SESSION_VERSION,
+      view: state.view
+    };
+
+    if (state.view === "setup") {
+      snapshot.playerName = state.playerName;
+    }
+
+    if (state.view === "game" || state.view === "result") {
+      if (!hasRestorableRoundState()) {
+        clearActiveSession();
+        return;
+      }
+
+      snapshot.playerName = state.playerName;
+      snapshot.selectedTheme = state.selectedTheme;
+      snapshot.roundIds = state.rounds.map((question) => question.id);
+      snapshot.currentIndex = state.currentIndex;
+      snapshot.score = state.score;
+      snapshot.aiSideHistory = [...state.aiSideHistory];
+      snapshot.optionOrder = state.currentOptions.map((option) => option.kind);
+
+      if (state.view === "result") {
+        if (!state.selectedOption || !["real", "ai"].includes(state.selectedOption.kind)) {
+          clearActiveSession();
+          return;
+        }
+        snapshot.selectedOptionKind = state.selectedOption.kind;
+      }
+    }
+
+    if (state.view === "final") {
+      const pendingScore = normalizePendingScore(state.pendingScore);
+      if (!pendingScore) {
+        clearActiveSession();
+        return;
+      }
+      snapshot.pendingScore = pendingScore;
+      snapshot.scoreSaved = Boolean(state.scoreSaved);
+    }
+
+    if (state.view !== "setup" && state.view !== "game" && state.view !== "result" && state.view !== "final" && state.view !== "scores") {
+      clearActiveSession();
+      return;
+    }
+
+    try {
+      sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(snapshot));
+    } catch {
+      // The game remains usable if session storage is unavailable.
+    }
+  }
+
+  function restoreActiveSession() {
+    const saved = readActiveSession();
+    if (!saved) return false;
+
+    if (saved.view === "setup") {
+      restoreSessionPlayerName(saved.playerName);
+      showScreen("setup");
+      return true;
+    }
+
+    if (saved.view === "scores") {
+      renderScores();
+      showScreen("scores");
+      return true;
+    }
+
+    if (saved.view === "game" || saved.view === "result") {
+      if (!restoreRoundSession(saved)) {
+        clearActiveSession();
+        return false;
+      }
+
+      renderRound(saved.optionOrder);
+
+      if (saved.view === "result") {
+        state.selectedOption = state.currentOptions.find((option) => option.kind === saved.selectedOptionKind) || null;
+        if (!state.selectedOption) {
+          clearActiveSession();
+          return false;
+        }
+        renderResult();
+        showScreen("result");
+      } else {
+        showScreen("game");
+      }
+      return true;
+    }
+
+    if (saved.view === "final") {
+      const pendingScore = normalizePendingScore(saved.pendingScore);
+      if (!pendingScore) {
+        clearActiveSession();
+        return false;
+      }
+
+      state.playerName = pendingScore.player;
+      state.selectedTheme = pendingScore.theme;
+      state.pendingScore = pendingScore;
+      state.scoreSaved = Boolean(saved.scoreSaved);
+      renderFinalScreen();
+      return true;
+    }
+
+    clearActiveSession();
+    return false;
+  }
+
+  function readActiveSession() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(ACTIVE_SESSION_KEY) || "null");
+      if (!saved || saved.version !== ACTIVE_SESSION_VERSION || typeof saved.view !== "string") return null;
+      return saved;
+    } catch {
+      clearActiveSession();
+      return null;
+    }
+  }
+
+  function clearActiveSession() {
+    try {
+      sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+    } catch {
+      // The game remains usable if session storage is unavailable.
+    }
+  }
+
+  function restoreRoundSession(saved) {
+    if (!THEMES.includes(saved.selectedTheme) || !Array.isArray(saved.roundIds)) return false;
+    if (!saved.roundIds.length || saved.roundIds.length > ROUNDS_PER_GAME) return false;
+    if (new Set(saved.roundIds).size !== saved.roundIds.length || !saved.roundIds.every((id) => typeof id === "string")) return false;
+
+    const questionsById = new Map(QUESTIONS.map((question) => [question.id, question]));
+    const restoredRounds = saved.roundIds.map((id) => questionsById.get(id));
+    if (restoredRounds.some((question) => !question)) return false;
+    if (!Number.isInteger(saved.currentIndex) || saved.currentIndex < 0 || saved.currentIndex >= restoredRounds.length) return false;
+    if (!Number.isInteger(saved.score) || saved.score < 0) return false;
+
+    const maxScore = saved.view === "result" ? saved.currentIndex + 1 : saved.currentIndex;
+    if (saved.score > maxScore) return false;
+    if (!isValidAISideHistory(saved.aiSideHistory, saved.currentIndex) || !isValidOptionOrder(saved.optionOrder)) return false;
+
+    const expectedOrder = saved.aiSideHistory[saved.aiSideHistory.length - 1] === "left" ? ["ai", "real"] : ["real", "ai"];
+    if (saved.optionOrder[0] !== expectedOrder[0] || saved.optionOrder[1] !== expectedOrder[1]) return false;
+    if (saved.view === "result" && !["real", "ai"].includes(saved.selectedOptionKind)) return false;
+
+    state.playerName = getAcceptedPlayerName(saved.playerName);
+    state.selectedTheme = saved.selectedTheme;
+    state.rounds = restoredRounds;
+    state.currentIndex = saved.currentIndex;
+    state.score = saved.score;
+    state.currentOptions = [];
+    state.selectedOption = null;
+    state.aiSideHistory = [...saved.aiSideHistory];
+    state.pendingScore = null;
+    state.scoreSaved = false;
+    return true;
+  }
+
+  function restoreSessionPlayerName(playerName) {
+    const player = getAcceptedPlayerName(playerName);
+    state.playerName = player;
+    playerNameInput.value = player === PLAYER_NAME_FALLBACK ? "" : player;
+    finalPlayerNameInput.value = player;
+  }
+
+  function hasRestorableRoundState() {
+    return (
+      THEMES.includes(state.selectedTheme) &&
+      Array.isArray(state.rounds) &&
+      state.rounds.length > 0 &&
+      Number.isInteger(state.currentIndex) &&
+      state.currentIndex >= 0 &&
+      state.currentIndex < state.rounds.length &&
+      Number.isInteger(state.score) &&
+      state.score >= 0 &&
+      isValidAISideHistory(state.aiSideHistory, state.currentIndex) &&
+      isValidOptionOrder(state.currentOptions.map((option) => option.kind))
+    );
+  }
+
+  function isValidAISideHistory(history, currentIndex) {
+    return (
+      Array.isArray(history) &&
+      history.length === currentIndex + 1 &&
+      history.every((side) => side === "left" || side === "right")
+    );
+  }
+
+  function isValidOptionOrder(order) {
+    return Array.isArray(order) && order.length === 2 && new Set(order).size === 2 && order.includes("real") && order.includes("ai");
+  }
+
+  function normalizePendingScore(value) {
+    if (!value || typeof value !== "object" || !THEMES.includes(value.theme)) return null;
+
+    const score = Number(value.score);
+    const total = Number(value.total);
+    if (!Number.isInteger(score) || !Number.isInteger(total) || score < 0 || total < 1 || score > total) return null;
+
+    return {
+      player: getAcceptedPlayerName(value.player),
+      theme: value.theme,
+      score,
+      total,
+      date: typeof value.date === "string" ? value.date : new Date().toISOString()
+    };
+  }
+
   function showScreen(name) {
+    state.view = name;
     screens.forEach((screen) => {
       screen.classList.toggle("is-active", screen.dataset.screen === name);
     });
+    persistActiveSession();
   }
 
   function shuffle(items) {
